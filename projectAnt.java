@@ -1,208 +1,161 @@
-/*
-  Copyright 2006 by Sean Luke and George Mason University
-  Licensed under the Academic Free License version 3.0
-  See the file "LICENSE" for more information
-*/
-
-package sim.app.antsforage;
-
+ 
+ 
+package sim.app.project;
+ 
 import sim.field.grid.*;
 import sim.portrayal.*;
 import sim.portrayal.simple.*;
 import sim.util.*;
 import sim.engine.*;
 import java.awt.*;
-
-public class Ant extends OvalPortrayal2D implements Steppable
+ 
+public class projectAnt extends OvalPortrayal2D implements Steppable
     {
     private static final long serialVersionUID = 1;
-
+ 
     public boolean getHasFoodItem() { return hasFoodItem; }
     public void setHasFoodItem(boolean val) { hasFoodItem = val; }
     public boolean hasFoodItem = false;
     double reward = 0;
-        
+       
     int x;
     int y;
-        
-    Int2D last;
-        
-    public Ant(double initialReward) { reward = initialReward; }
-        
-        
-    
-    
-        
-        
+       
+    Int2D last; //holds the location of the last occupied space
+       
+    public projectAnt(double initialReward) { reward = initialReward; } //ants have a reward parameter which provides pheromone
+         
     public void depositPheromone( final SimState state)
         {
-        final AntsForage af = (AntsForage)state;
-                
-        Int2D location = af.buggrid.getObjectLocation(this);
+        final projectMain pm = (projectMain)state;
+               
+        Int2D location = pm.antgrid.getObjectLocation(this);
         int x = location.x;
         int y = location.y;
-                
-        if (AntsForage.ALGORITHM == AntsForage.ALGORITHM_VALUE_ITERATION)
-            {
-            
-            if (hasFoodItem)  
+           
+            if (hasFoodItem)  // deposit food pheromone
                 {
-                double max = af.toFoodGrid.field[x][y];
-                for(int dx = -1; dx < 2; dx++)
-                    for(int dy = -1; dy < 2; dy++)
-                        {
-                        int _x = dx+x;
-                        int _y = dy+y;
-                        if (_x < 0 || _y < 0 || _x >= AntsForage.GRID_WIDTH || _y >= AntsForage.GRID_HEIGHT) continue;  
-                        double m = af.toFoodGrid.field[_x][_y] * 
-                            (dx * dy != 0 ? 
-                            af.diagonalCutDown : af.updateCutDown) +
-                            reward;
-                        if (m > max) max = m;
-                        }
-                af.toFoodGrid.field[x][y] = max;
+                double maximum = pm.toFoodGrid.field[x][y]; //
+                for(int xgrid = -1; xgrid < 2; xgrid++) {   // Ants deposit pheromones in locations all around it
+                    for(int ygrid = -1; ygrid < 2; ygrid++) {
+                        if((xgrid + x == 0) || (ygrid + y == 0) || xgrid > projectMain.gridWidth || ygrid > projectMain.gridHeight) continue; //pheromones not placed out of bounds
+                        double p = pm.toFoodGrid.field[(x + xgrid)][(y + ygrid)] * pm.updateCutDown + reward;
+                        if(p > maximum) maximum = p;
+                    }
+                pm.toFoodGrid.field[x][y] = maximum;
                 }
-            else
+                }
+ 
+            else  //ants looking for food source
                 {
-                double max = af.toHomeGrid.field[x][y];
-                for(int dx = -1; dx < 2; dx++)
-                    for(int dy = -1; dy < 2; dy++)
-                        {
-                        int _x = dx+x;
-                        int _y = dy+y;
-                        if (_x < 0 || _y < 0 || _x >= AntsForage.GRID_WIDTH || _y >= AntsForage.GRID_HEIGHT) continue;  
-                        double m = af.toHomeGrid.field[_x][_y] * 
-                            (dx * dy != 0 ? 
-                            af.diagonalCutDown : af.updateCutDown) +
-                            reward;
-                        if (m > max) max = m;
-                        }
-                af.toHomeGrid.field[x][y] = max;
+                double maximum = pm.toHomeGrid.field[x][y];
+                for(int xgrid = -1; xgrid < 2; xgrid++) {
+                    for(int ygrid = -1; ygrid < 2; ygrid++) {
+                        int x1 = x + xgrid;
+                        int y1 = y + ygrid;
+                        if(x1 < 0 || y1 < 0 || x1 >= projectMain.gridWidth || y1 >= projectMain.gridHeight) continue;
+                        double p = pm.toHomeGrid.field[x1][y1] * pm.updateCutDown + reward;
+                        if(p > maximum) maximum = p;
+                    }
                 }
-            }
+                pm.toHomeGrid.field[x][y] = maximum;
+                }
+ 
+           
         reward = 0.0;
         }
-
+ 
     public void act( final SimState state )
         {
-        final AntsForage af = (AntsForage)state;
-                
-        Int2D location = af.buggrid.getObjectLocation(this);
+        final projectMain pm = (projectMain)state;
+               
+        Int2D location = pm.antgrid.getObjectLocation(this);
         int x = location.x;
         int y = location.y;
-                
-        if (hasFoodItem)  
+               
+        if (hasFoodItem)  // follow home pheromone
             {
-            double max = AntsForage.IMPOSSIBLY_BAD_PHEROMONE;
-            int max_x = x;
-            int max_y = y;
-            int count = 2;
-            for(int dx = -1; dx < 2; dx++)
-                for(int dy = -1; dy < 2; dy++)
-                    {
-                    int _x = dx+x;
-                    int _y = dy+y;
-                    if ((dx == 0 && dy == 0) ||
-                        _x < 0 || _y < 0 ||
-                        _x >= AntsForage.GRID_WIDTH || _y >= AntsForage.GRID_HEIGHT || 
-                        af.obstacles.field[_x][_y] == 1) continue;  
-                    double m = af.toHomeGrid.field[_x][_y];
-                    if (m > max)
-                        {
-                        count = 2;
-                        }
-                    
-                    if (m > max || (m == max && state.random.nextBoolean(1.0 / count++)))  
-                        {
-                        max = m;
-                        max_x = _x;
-                        max_y = _y;
-                        }
+            double best = projectMain.badPheromone;
+            int best_x = x;
+            int best_y = y;
+            int decisionVariable = 2;
+            for(int xgrid = -1; xgrid < 2; xgrid++) {
+                for(int ygrid = -1; ygrid < 2; ygrid++) {
+                    if((xgrid == 0 && ygrid == 0) || (xgrid + x < 0) || (ygrid + y < 0) || (xgrid + x >= projectMain.gridWidth)
+                            || (ygrid + y >= projectMain.gridHeight) || pm.obstacles.field[(xgrid + x)][(ygrid + y)] == 1) {
+                        continue; // if current coordinate in the loop is out of bounds just move to the next one
                     }
-            if (max == 0 && last != null)  
-                {
-                if (state.random.nextBoolean(af.momentumProbability))
-                    {
-                    int xm = x + (x - last.x);
-                    int ym = y + (y - last.y);
-                    if (xm >= 0 && xm < AntsForage.GRID_WIDTH && ym >= 0 && ym < AntsForage.GRID_HEIGHT && af.obstacles.field[xm][ym] == 0)
-                        { max_x = xm; max_y = ym; }
+                    double p = pm.toHomeGrid.field[(xgrid + x)][(ygrid + y)];
+                    if(p > best) {
+                        decisionVariable = 2; //makes it so decisions are 50/50
+                    }
+                    if(p > best || (p== best && state.random.nextBoolean(1.0 / decisionVariable++))) { //if no decision looks better than another then choose a random one, the decision variable makes the randomness fair
+                        best = p;
+                        best_x = (xgrid + x);
+                        best_y = (ygrid + y);
                     }
                 }
-            else if (state.random.nextBoolean(af.randomActionProbability))  
-                {
-                int xd = (state.random.nextInt(3) - 1);
-                int yd = (state.random.nextInt(3) - 1);
-                int xm = x + xd;
-                int ym = y + yd;
-                if (!(xd == 0 && yd == 0) && xm >= 0 && xm < AntsForage.GRID_WIDTH && ym >= 0 && ym < AntsForage.GRID_HEIGHT && af.obstacles.field[xm][ym] == 0)
-                    { max_x = xm; max_y = ym; }
-                }
-            af.buggrid.setObjectLocation(this, new Int2D(max_x, max_y));
-            if (af.sites.field[max_x][max_y] == AntsForage.HOME)  
-                { reward = af.reward ; hasFoodItem = ! hasFoodItem; }
             }
+ 
+//random and momentum here
+            pm.antgrid.setObjectLocation(this, new Int2D(best_x, best_y));
+            if (pm.sites.field[best_x][best_y] == projectMain.HOME)  // reward me next time!  And change my status
+                {
+                reward = pm.reward ;
+                hasFoodItem = ! hasFoodItem;
+                }
+            }
+ 
+ 
+       
         else
             {
-            double max = AntsForage.IMPOSSIBLY_BAD_PHEROMONE;
-            int max_x = x;
-            int max_y = y;
-            int count = 2;
-            for(int dx = -1; dx < 2; dx++)
-                for(int dy = -1; dy < 2; dy++)
-                    {
-                    int _x = dx+x;
-                    int _y = dy+y;
-                    if ((dx == 0 && dy == 0) ||
-                        _x < 0 || _y < 0 ||
-                        _x >= AntsForage.GRID_WIDTH || _y >= AntsForage.GRID_HEIGHT || 
-                        af.obstacles.field[_x][_y] == 1) continue;  
-                    double m = af.toFoodGrid.field[_x][_y];
-                    if (m > max)
-                        {
-                        count = 2;
-                        }
-                    
-                    if (m > max || (m == max && state.random.nextBoolean(1.0 / count++)))  
-                        {
-                        max = m;
-                        max_x = _x;
-                        max_y = _y;
-                        }
+            double best = projectMain.badPheromone;
+            int best_x = x;
+            int best_y = y;
+            int decisionVariable = 2;
+            for(int xgrid = -1; xgrid < 2; xgrid++) {
+                for(int ygrid = -1; ygrid < 2; ygrid++) {
+                    if((xgrid == 0 && ygrid == 0) || (xgrid + x < 0) || (ygrid + y < 0) || (xgrid + x >= projectMain.gridWidth)
+                            || (ygrid + y >= projectMain.gridHeight) || pm.obstacles.field[(xgrid + x)][(ygrid + y)] == 1) {
+                        continue;
                     }
-            if (max == 0 && last != null)  
-                {
-                if (state.random.nextBoolean(af.momentumProbability))
-                    {
-                    int xm = x + (x - last.x);
-                    int ym = y + (y - last.y);
-                    if (xm >= 0 && xm < AntsForage.GRID_WIDTH && ym >= 0 && ym < AntsForage.GRID_HEIGHT && af.obstacles.field[xm][ym] == 0)
-                        { max_x = xm; max_y = ym; }
+                    double p = pm.toFoodGrid.field[(xgrid + x)][(ygrid + y)];
+                    if(p > best) {
+                        decisionVariable = 2; //makes it so decisions are 50/50
+                    }
+                    if(p > best || (p== best && state.random.nextBoolean(1.0 / decisionVariable++))) {
+                        best = p;
+                        best_x = (xgrid + x);
+                        best_y = (ygrid + y);
                     }
                 }
-            else if (state.random.nextBoolean(af.randomActionProbability))  
-                {
-                int xd = (state.random.nextInt(3) - 1);
-                int yd = (state.random.nextInt(3) - 1);
-                int xm = x + xd;
-                int ym = y + yd;
-                if (!(xd == 0 && yd == 0) && xm >= 0 && xm < AntsForage.GRID_WIDTH && ym >= 0 && ym < AntsForage.GRID_HEIGHT && af.obstacles.field[xm][ym] == 0)
-                    { max_x = xm; max_y = ym; }
+            }
+            if(best == 0 && last != null) { // if no obvious best choice try going in a straight line
+                if(state.random.nextBoolean(pm.momentumProbability)) { //chance that straight line movement will occur
+                    int nextX = x + (x- last.x);
+                    int nextY = y + (y - last.y);
+                    if(nextX >= 0 && nextY >= 0 && nextX < projectMain.gridWidth && nextY < projectMain.gridHeight && pm.obstacles.field[nextX][nextY] == 0) {
+                        best_x = nextX;
+                        best_y = nextY;
+                    }
                 }
-            af.buggrid.setObjectLocation(this, new Int2D(max_x, max_y));
-            if (af.sites.field[max_x][max_y] == AntsForage.FOOD)  
-                { reward = af.reward; hasFoodItem = ! hasFoodItem; }
+            }
+ 
+ 
+            pm.antgrid.setObjectLocation(this, new Int2D(best_x, best_y));
+            if (pm.sites.field[best_x][best_y] == projectMain.FOOD)  // once food is found change state
+                { reward = pm.reward; hasFoodItem = ! hasFoodItem; }
             }
         last = location;
         }
-
+   
     public void step( final SimState state )
         {
         depositPheromone(state);
         act(state);
         }
 
-    
     private Color noFoodColor = Color.black;
     private Color foodColor = Color.red;
     public final void draw(Object object, Graphics2D graphics, DrawInfo2D info)
@@ -211,13 +164,13 @@ public class Ant extends OvalPortrayal2D implements Steppable
             graphics.setColor( foodColor );
         else
             graphics.setColor( noFoodColor );
-
-        
+ 
+        // this code was taken from OvalPortrayal2D
         int x = (int)(info.draw.x - info.draw.width / 2.0);
         int y = (int)(info.draw.y - info.draw.height / 2.0);
         int width = (int)(info.draw.width);
         int height = (int)(info.draw.height);
         graphics.fillOval(x,y,width, height);
-
+ 
         }
     }
